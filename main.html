@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Next-Token Prediction: Softmax & Temperature Visualizer</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        .header .subtitle {
+            font-size: 1.1rem;
+            color: #475569;
+            margin-bottom: 0.25rem;
+        }
+        .header .author {
+            font-size: 0.95rem;
+            color: #64748b;
+        }
+
+        /* Section */
+        .section {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-title .step-num {
+            background: #3b82f6;
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+
+        /* Controls */
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+            margin-bottom: 1rem;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+        .control-group label {
+            font-size: 0.85rem;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        select, input[type="number"] {
+            background: #f8fafc;
+            color: #1e293b;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        select:focus, input[type="number"]:focus {
+            border-color: #3b82f6;
+        }
+
+        /* Token table */
+        .token-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.75rem;
+        }
+        .token-table th {
+            text-align: left;
+            font-size: 0.8rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .token-table td {
+            padding: 0.4rem 0.75rem;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .token-table input[type="text"] {
+            background: #f8fafc;
+            color: #1e293b;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 0.35rem 0.5rem;
+            font-size: 0.9rem;
+            width: 120px;
+            outline: none;
+        }
+        .token-table input[type="text"]:focus {
+            border-color: #3b82f6;
+        }
+        .token-table input[type="range"] {
+            width: 140px;
+            accent-color: #3b82f6;
+        }
+        .logit-value {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #b45309;
+            min-width: 45px;
+            display: inline-block;
+            text-align: right;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-danger {
+            background: #ef4444;
+            color: #fff;
+            padding: 0.3rem 0.6rem;
+            font-size: 0.8rem;
+        }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success {
+            background: #22c55e;
+            color: #fff;
+            padding: 0.3rem 0.6rem;
+            font-size: 0.8rem;
+        }
+        .btn-success:hover { background: #16a34a; }
+
+        /* Temperature slider */
+        .temp-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .temp-slider-container input[type="range"] {
+            flex: 1;
+            min-width: 200px;
+            accent-color: #f59e0b;
+            height: 6px;
+        }
+        .temp-value {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #b45309;
+            min-width: 60px;
+        }
+        .temp-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+        .temp-hint {
+            font-size: 0.85rem;
+            color: #475569;
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+
+        /* Charts grid */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 768px) {
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Math table */
+        .math-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+        }
+        .math-table th {
+            background: #f1f5f9;
+            color: #1e40af;
+            padding: 0.6rem 0.75rem;
+            text-align: center;
+            border-bottom: 2px solid #e2e8f0;
+            font-size: 0.78rem;
+        }
+        .math-table td {
+            padding: 0.5rem 0.75rem;
+            text-align: center;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .math-table tr:hover { background: #f8fafc; }
+        .math-table .highlight {
+            color: #059669;
+            font-weight: 600;
+        }
+        .formula-display {
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            font-size: 1rem;
+            color: #6d28d9;
+            margin-bottom: 1rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Sampling */
+        .sampling-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+            margin-bottom: 1rem;
+        }
+        .sample-result {
+            background: #f1f5f9;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+        .sample-result span {
+            color: #b45309;
+            font-weight: 600;
+        }
+
+        /* Explanation */
+        .explanation {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            margin-top: 1.5rem;
+        }
+        .explanation h2 {
+            font-size: 1.3rem;
+            color: #1e40af;
+            margin-bottom: 1rem;
+        }
+        .explanation p {
+            color: #334155;
+            margin-bottom: 1rem;
+            text-align: justify;
+        }
+        .explanation p:last-child { margin-bottom: 0; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // ── Preset scenarios ──────────────────────────────────────────────
+        const PRESETS = {
+            "The cat sat on the...": [
+                { word: "mat",   logit: 2.0  },
+                { word: "floor", logit: 1.0  },
+                { word: "couch", logit: 0.5  },
+                { word: "pizza", logit: -2.0 },
+            ],
+            "I want to eat some...": [
+                { word: "pizza",   logit: 2.5  },
+                { word: "sushi",   logit: 1.8  },
+                { word: "cake",    logit: 1.2  },
+                { word: "salad",   logit: 0.3  },
+                { word: "rocks",   logit: -3.0 },
+            ],
+            "The weather today is...": [
+                { word: "sunny",   logit: 1.5  },
+                { word: "cloudy",  logit: 1.3  },
+                { word: "rainy",   logit: 0.8  },
+                { word: "snowy",   logit: -0.5 },
+                { word: "purple",  logit: -4.0 },
+            ],
+            "She decided to study...": [
+                { word: "math",      logit: 1.8  },
+                { word: "biology",   logit: 1.5  },
+                { word: "history",   logit: 1.0  },
+                { word: "cooking",   logit: 0.0  },
+                { word: "unicorns",  logit: -3.5 },
+            ],
+        };
+        const PRESET_KEYS = Object.keys(PRESETS);
+
+        // ── Softmax computation ───────────────────────────────────────────
+        function computeSoftmax(tokens, T) {
+            const maxLogit = Math.max(...tokens.map(t => t.logit));
+            const scaled = tokens.map(t => (t.logit - maxLogit) / T);
+            const exps = scaled.map(s => Math.exp(s));
+            const sumExp = exps.reduce((a, b) => a + b, 0);
+            const probs = exps.map(e => e / sumExp);
+            return { exps, sumExp, probs };
+        }
+
+        // ── Weighted sampling ─────────────────────────────────────────────
+        function sampleFromDist(probs, n) {
+            const counts = new Array(probs.length).fill(0);
+            for (let i = 0; i < n; i++) {
+                let r = Math.random();
+                let cumulative = 0;
+                for (let j = 0; j < probs.length; j++) {
+                    cumulative += probs[j];
+                    if (r <= cumulative) {
+                        counts[j]++;
+                        break;
+                    }
+                }
+            }
+            return counts;
+        }
+
+        // ── Main App ─────────────────────────────────────────────────────
+        function App() {
+            const [presetKey, setPresetKey] = useState(PRESET_KEYS[0]);
+            const [tokens, setTokens] = useState(PRESETS[PRESET_KEYS[0]].map(t => ({ ...t })));
+            const [temperature, setTemperature] = useState(1.0);
+            const [numSamples, setNumSamples] = useState(1000);
+            const [sampleCounts, setSampleCounts] = useState(null);
+
+            const logitChartRef = useRef(null);
+            const probChartRef = useRef(null);
+            const samplingChartRef = useRef(null);
+
+            // Compute softmax
+            const { exps, sumExp, probs } = computeSoftmax(tokens, temperature);
+            const words = tokens.map(t => t.word);
+
+            // ── Preset change ──
+            function handlePresetChange(key) {
+                setPresetKey(key);
+                setTokens(PRESETS[key].map(t => ({ ...t })));
+                setSampleCounts(null);
+            }
+
+            // ── Token editing ──
+            function updateTokenWord(i, word) {
+                const next = [...tokens];
+                next[i] = { ...next[i], word };
+                setTokens(next);
+            }
+            function updateTokenLogit(i, logit) {
+                const next = [...tokens];
+                next[i] = { ...next[i], logit: parseFloat(logit) || 0 };
+                setTokens(next);
+            }
+            function addToken() {
+                setTokens([...tokens, { word: "new", logit: 0.0 }]);
+            }
+            function removeToken(i) {
+                if (tokens.length <= 2) return;
+                setTokens(tokens.filter((_, idx) => idx !== i));
+                setSampleCounts(null);
+            }
+
+            // ── Run sampling ──
+            function runSampling() {
+                const counts = sampleFromDist(probs, numSamples);
+                setSampleCounts(counts);
+            }
+
+            // ── Plot: logits ──
+            useEffect(() => {
+                if (!logitChartRef.current) return;
+                const colors = tokens.map((_, i) => {
+                    const hue = (i * 360 / tokens.length + 200) % 360;
+                    return `hsl(${hue}, 65%, 50%)`;
+                });
+                Plotly.react(logitChartRef.current, [{
+                    x: words,
+                    y: tokens.map(t => t.logit),
+                    type: 'bar',
+                    marker: { color: colors, line: { color: '#ffffff', width: 1 } },
+                    hovertemplate: '<b>%{x}</b><br>Logit: %{y:.2f}<extra></extra>',
+                }], {
+                    title: { text: 'Raw Logits (Model Scores)', font: { color: '#1e40af', size: 15 } },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    font: { color: '#475569' },
+                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 } },
+                    yaxis: { title: 'Logit Value', gridcolor: '#e2e8f0', zeroline: true, zerolinecolor: '#94a3b8' },
+                    margin: { t: 45, b: 50, l: 55, r: 20 },
+                }, { responsive: true, displayModeBar: false });
+            }, [tokens]);
+
+            // ── Plot: probabilities ──
+            useEffect(() => {
+                if (!probChartRef.current) return;
+                const colors = tokens.map((_, i) => {
+                    const hue = (i * 360 / tokens.length + 200) % 360;
+                    return `hsl(${hue}, 65%, 50%)`;
+                });
+                Plotly.react(probChartRef.current, [{
+                    x: words,
+                    y: probs,
+                    type: 'bar',
+                    marker: { color: colors, line: { color: '#ffffff', width: 1 } },
+                    text: probs.map(p => (p * 100).toFixed(1) + '%'),
+                    textposition: 'outside',
+                    textfont: { color: '#334155', size: 12 },
+                    hovertemplate: '<b>%{x}</b><br>P = %{y:.4f}<extra></extra>',
+                }], {
+                    title: { text: `Softmax Probabilities (T = ${temperature.toFixed(2)})`, font: { color: '#1e40af', size: 15 } },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    font: { color: '#475569' },
+                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 } },
+                    yaxis: { title: 'Probability', gridcolor: '#e2e8f0', range: [0, Math.min(1.05, Math.max(...probs) * 1.3)] },
+                    margin: { t: 45, b: 50, l: 55, r: 20 },
+                }, { responsive: true, displayModeBar: false });
+            }, [tokens, temperature]);
+
+            // ── Plot: sampling ──
+            useEffect(() => {
+                if (!samplingChartRef.current || !sampleCounts) return;
+                const empiricalFreqs = sampleCounts.map(c => c / numSamples);
+                const colors = tokens.map((_, i) => {
+                    const hue = (i * 360 / tokens.length + 200) % 360;
+                    return `hsl(${hue}, 65%, 50%)`;
+                });
+                Plotly.react(samplingChartRef.current, [
+                    {
+                        x: words,
+                        y: empiricalFreqs,
+                        type: 'bar',
+                        name: 'Empirical (Sampled)',
+                        marker: { color: colors, line: { color: '#ffffff', width: 1 } },
+                        hovertemplate: '<b>%{x}</b><br>Empirical: %{y:.4f}<extra></extra>',
+                    },
+                    {
+                        x: words,
+                        y: probs,
+                        type: 'scatter',
+                        mode: 'markers',
+                        name: 'Theoretical (Softmax)',
+                        marker: { color: '#dc2626', size: 14, symbol: 'diamond', line: { color: '#1e293b', width: 1.5 } },
+                        hovertemplate: '<b>%{x}</b><br>Theoretical: %{y:.4f}<extra></extra>',
+                    },
+                ], {
+                    title: { text: `Sampling Results (N = ${numSamples.toLocaleString()})`, font: { color: '#1e40af', size: 15 } },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    font: { color: '#475569' },
+                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 } },
+                    yaxis: { title: 'Relative Frequency / Probability', gridcolor: '#e2e8f0', range: [0, Math.min(1.05, Math.max(...empiricalFreqs, ...probs) * 1.3)] },
+                    margin: { t: 45, b: 50, l: 55, r: 20 },
+                    legend: { x: 0.65, y: 1, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 11 } },
+                    barmode: 'group',
+                }, { responsive: true, displayModeBar: false });
+            }, [sampleCounts, probs]);
+
+            // ── Temperature description ──
+            function getTempDescription(T) {
+                if (T <= 0.3)  return "Very low: nearly deterministic. The model almost always picks the highest-logit token.";
+                if (T <= 0.7)  return "Low: confident and focused. High-probability tokens dominate strongly.";
+                if (T <= 1.3)  return "Moderate: balanced. Probabilities reflect the logit differences naturally.";
+                if (T <= 2.5)  return "High: creative and diverse. Lower-probability tokens get a real chance.";
+                return "Very high: nearly uniform. The model picks almost randomly regardless of logits.";
+            }
+
+            return (
+                <div className="app-container">
+                    {/* Header */}
+                    <div className="header">
+                        <h1>Probability in the Machine: How LLMs "Think"</h1>
+                        <div className="subtitle">An interactive visualization of how Large Language Models use Softmax, Temperature, and Sampling to predict the next token.</div>
+                        <div className="author">Kejun Liu</div>
+                    </div>
+
+                    {/* Step 1: Token Input */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span className="step-num">1</span>
+                            Define Tokens &amp; Logits
+                        </div>
+                        <div className="controls-row">
+                            <div className="control-group">
+                                <label>Preset Scenario</label>
+                                <select value={presetKey} onChange={e => handlePresetChange(e.target.value)}>
+                                    {PRESET_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
+                                </select>
+                            </div>
+                            <button className="btn btn-success" onClick={addToken}>+ Add Token</button>
+                        </div>
+                        <table className="token-table">
+                            <thead>
+                                <tr>
+                                    <th>Token (Word)</th>
+                                    <th>Logit (Raw Score)</th>
+                                    <th>Adjust</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {tokens.map((t, i) => (
+                                    <tr key={i}>
+                                        <td>
+                                            <input
+                                                type="text"
+                                                value={t.word}
+                                                onChange={e => updateTokenWord(i, e.target.value)}
+                                            />
+                                        </td>
+                                        <td>
+                                            <span className="logit-value">{t.logit.toFixed(1)}</span>
+                                        </td>
+                                        <td>
+                                            <input
+                                                type="range"
+                                                min="-5"
+                                                max="5"
+                                                step="0.1"
+                                                value={t.logit}
+                                                onChange={e => updateTokenLogit(i, e.target.value)}
+                                            />
+                                        </td>
+                                        <td>
+                                            {tokens.length > 2 && (
+                                                <button className="btn btn-danger" onClick={() => removeToken(i)}>Remove</button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Step 2: Temperature */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span className="step-num">2</span>
+                            Set Temperature (T)
+                        </div>
+                        <div className="temp-slider-container">
+                            <span style={{ color: '#64748b', fontSize: '0.9rem' }}>0.1</span>
+                            <input
+                                type="range"
+                                min="0.1"
+                                max="5.0"
+                                step="0.01"
+                                value={temperature}
+                                onChange={e => setTemperature(parseFloat(e.target.value))}
+                            />
+                            <span style={{ color: '#64748b', fontSize: '0.9rem' }}>5.0</span>
+                            <span className="temp-value">T = {temperature.toFixed(2)}</span>
+                        </div>
+                        <div className="temp-hint">{getTempDescription(temperature)}</div>
+                    </div>
+
+                    {/* Step 3: Softmax Charts */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span className="step-num">3</span>
+                            Logits vs. Softmax Probabilities
+                        </div>
+                        <div className="charts-grid">
+                            <div ref={logitChartRef} style={{ width: '100%', height: 350 }}></div>
+                            <div ref={probChartRef} style={{ width: '100%', height: 350 }}></div>
+                        </div>
+                    </div>
+
+                    {/* Step 4: Math Breakdown */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span className="step-num">4</span>
+                            Step-by-Step Computation
+                        </div>
+                        <div className="formula-display">
+                            p<sub>i</sub> = exp(z<sub>i</sub> / T) / &Sigma; exp(z<sub>j</sub> / T)
+                            &nbsp;&nbsp;&nbsp;where T = {temperature.toFixed(2)}
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="math-table">
+                                <thead>
+                                    <tr>
+                                        <th>Token</th>
+                                        <th>Logit (z<sub>i</sub>)</th>
+                                        <th>z<sub>i</sub> / T</th>
+                                        <th>exp(z<sub>i</sub> / T)</th>
+                                        <th>Probability (p<sub>i</sub>)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tokens.map((t, i) => {
+                                        const scaled = t.logit / temperature;
+                                        const expVal = Math.exp(scaled);
+                                        return (
+                                            <tr key={i}>
+                                                <td style={{ color: '#1e293b', fontWeight: 600 }}>{t.word}</td>
+                                                <td style={{ color: '#b45309' }}>{t.logit.toFixed(2)}</td>
+                                                <td>{scaled.toFixed(3)}</td>
+                                                <td>{expVal.toFixed(4)}</td>
+                                                <td className="highlight">{(probs[i] * 100).toFixed(2)}%</td>
+                                            </tr>
+                                        );
+                                    })}
+                                    <tr style={{ borderTop: '2px solid #475569' }}>
+                                        <td colSpan="3" style={{ textAlign: 'right', color: '#64748b' }}>
+                                            Normalizing constant &Sigma; =
+                                        </td>
+                                        <td style={{ color: '#7c3aed', fontWeight: 600 }}>
+                                            {tokens.reduce((s, t) => s + Math.exp(t.logit / temperature), 0).toFixed(4)}
+                                        </td>
+                                        <td className="highlight">100.00%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Step 5: Sampling */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span className="step-num">5</span>
+                            Sampling Simulation
+                        </div>
+                        <div className="sampling-controls">
+                            <div className="control-group">
+                                <label>Number of Samples (N)</label>
+                                <select value={numSamples} onChange={e => setNumSamples(parseInt(e.target.value))}>
+                                    <option value={100}>100</option>
+                                    <option value={500}>500</option>
+                                    <option value={1000}>1,000</option>
+                                    <option value={5000}>5,000</option>
+                                    <option value={10000}>10,000</option>
+                                    <option value={50000}>50,000</option>
+                                </select>
+                            </div>
+                            <button className="btn btn-primary" onClick={runSampling}>
+                                Sample {numSamples.toLocaleString()} Tokens
+                            </button>
+                        </div>
+                        {sampleCounts && (
+                            <div className="sample-result">
+                                Results: {tokens.map((t, i) => (
+                                    <span key={i}>
+                                        "{t.word}" = <span>{sampleCounts[i]}</span> ({(sampleCounts[i] / numSamples * 100).toFixed(1)}%)
+                                        {i < tokens.length - 1 ? ', ' : ''}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                        <div ref={samplingChartRef} style={{ width: '100%', height: 380 }}></div>
+                        {!sampleCounts && (
+                            <div style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem' }}>
+                                Click "Sample" to run the simulation. The empirical frequencies will be compared against the theoretical Softmax probabilities.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Explanation */}
+                    <div className="explanation">
+                        <h2>How Does a Large Language Model Predict the Next Word?</h2>
+                        <p>
+                            A Large Language Model (LLM) like ChatGPT or Claude does not "understand" language the way humans do.
+                            Instead, it solves a problem of <strong>conditional probability</strong>: given a sequence of words
+                            (w<sub>1</sub>, w<sub>2</sub>, ..., w<sub>t</sub>), it computes a probability distribution
+                            P(W<sub>t+1</sub> = x | w<sub>1</sub>, ..., w<sub>t</sub>) over every possible next word x in its vocabulary.
+                            The neural network produces raw scores called <strong>logits</strong> for each candidate word. These scores
+                            can be any real number &mdash; positive, negative, or zero &mdash; and do not form a valid probability distribution.
+                            The <strong>Softmax function</strong>, p<sub>i</sub> = exp(z<sub>i</sub>/T) / &Sigma; exp(z<sub>j</sub>/T),
+                            transforms these raw scores into a proper discrete probability distribution where every value is
+                            between 0 and 1 and all values sum to exactly 1. This is the mathematical bridge between raw neural
+                            network output and the rules of probability theory.
+                        </p>
+                        <p>
+                            The <strong>Temperature</strong> parameter (T) controls the "sharpness" of this distribution without
+                            changing what the model has learned. When T is very low (approaching 0), the Softmax output becomes
+                            extremely concentrated &mdash; the highest-logit token receives nearly all the probability mass, making
+                            the model deterministic and repetitive. When T is high (much greater than 1), the distribution flattens
+                            toward uniform, giving low-scoring tokens a meaningful chance of being selected. This makes the model
+                            appear more "creative" but also more prone to hallucinations. At T = 1, the probabilities directly
+                            reflect the relative differences in logit scores. Try dragging the temperature slider above to see how
+                            the same set of logits produces dramatically different probability distributions.
+                        </p>
+                        <p>
+                            Once the probability distribution is computed, the model <strong>samples</strong> from it &mdash;
+                            essentially rolling a weighted die. This is why you can ask an LLM the same question twice and receive
+                            different answers: each response is a fresh random sample. The sampling simulation in Section 5
+                            demonstrates the <strong>Law of Large Numbers</strong>: as you increase the number of samples, the
+                            empirical frequencies (bars) converge toward the theoretical Softmax probabilities (red diamonds).
+                            With N = 100 samples you may see noticeable deviation, but by N = 50,000 the empirical and theoretical
+                            values are nearly indistinguishable. This convergence is a fundamental result in probability theory and
+                            is exactly the mechanism that makes LLM behavior statistically predictable in aggregate, even though
+                            individual outputs are random.
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
