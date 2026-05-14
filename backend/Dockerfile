@@ -1,19 +1,22 @@
 FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1 \
+# HF Spaces runs containers as non-root uid 1000 by convention.
+RUN useradd -m -u 1000 user
+USER user
+
+ENV PATH="/home/user/.local/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    HF_HOME=/app/.cache/huggingface \
-    TRANSFORMERS_CACHE=/app/.cache/huggingface
+    HF_HOME=/home/user/.cache/huggingface \
+    TRANSFORMERS_CACHE=/home/user/.cache/huggingface
 
 WORKDIR /app
 
-RUN pip install --upgrade pip
+COPY --chown=user requirements.txt requirements.txt
+RUN pip install --user --no-cache-dir "torch>=2.6.0" --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --user --no-cache-dir -r requirements.txt
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir "torch>=2.6.0" --index-url https://download.pytorch.org/whl/cpu \
- && pip install --no-cache-dir -r requirements.txt
-
-COPY app.py .
+COPY --chown=user app.py .
 
 # HF Spaces convention: listen on 7860
 EXPOSE 7860

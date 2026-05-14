@@ -320,11 +320,10 @@
         const { useState, useEffect, useCallback, useRef } = React;
 
         // ── Backend ───────────────────────────────────────────────────────
-        // Point this at your FastAPI server. For local dev:
-        //   http://localhost:8000
-        // For Hugging Face Spaces deploy:
-        //   https://<username>-<space-name>.hf.space
-        const API_BASE_URL = "http://localhost:8000";
+        // Auto-detect: localhost during development, HF Space in production.
+        const API_BASE_URL = (location.hostname === "localhost" || location.hostname === "127.0.0.1")
+            ? "http://localhost:8000"
+            : "https://kejunliu12-softmax-demo.hf.space";
 
         // ── Softmax computation ───────────────────────────────────────────
         function computeSoftmax(tokens, T) {
@@ -583,7 +582,7 @@
                             )}
                             {predictStatus === "error" && (
                                 <div style={{ fontSize: '0.85rem', color: '#dc2626' }}>
-                                    Could not reach backend ({predictError}). Make sure the FastAPI server is running at <code>{API_BASE_URL}</code>, or use a preset below.
+                                    Could not reach backend ({predictError}). Expected a FastAPI server at <code>{API_BASE_URL}</code>. If you're viewing the public site, the backend Space may be asleep — wait 30–60s and click Predict again. For local dev, run <code>uvicorn app:app --port 8000</code> from <code>backend/</code>.
                                 </div>
                             )}
                             {modelName && predictStatus === "idle" && (

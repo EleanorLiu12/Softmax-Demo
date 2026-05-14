@@ -106,4 +106,4 @@ Originally built for **STAT 311 — Probability for Data Science**, topic *AI & 
 
 ## License
 
-Academic project. Not licensed for redistribution.
+[MIT](LICENSE) © 2026 Kejun Liu
