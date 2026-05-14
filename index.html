@@ -319,40 +319,16 @@
     <script type="text/babel">
         const { useState, useEffect, useCallback, useRef } = React;
 
-        // ── Preset scenarios ──────────────────────────────────────────────
-        const PRESETS = {
-            "The cat sat on the...": [
-                { word: "mat",   logit: 2.0  },
-                { word: "floor", logit: 1.0  },
-                { word: "couch", logit: 0.5  },
-                { word: "pizza", logit: -2.0 },
-            ],
-            "I want to eat some...": [
-                { word: "pizza",   logit: 2.5  },
-                { word: "sushi",   logit: 1.8  },
-                { word: "cake",    logit: 1.2  },
-                { word: "salad",   logit: 0.3  },
-                { word: "rocks",   logit: -3.0 },
-            ],
-            "The weather today is...": [
-                { word: "sunny",   logit: 1.5  },
-                { word: "cloudy",  logit: 1.3  },
-                { word: "rainy",   logit: 0.8  },
-                { word: "snowy",   logit: -0.5 },
-                { word: "purple",  logit: -4.0 },
-            ],
-            "She decided to study...": [
-                { word: "math",      logit: 1.8  },
-                { word: "biology",   logit: 1.5  },
-                { word: "history",   logit: 1.0  },
-                { word: "cooking",   logit: 0.0  },
-                { word: "unicorns",  logit: -3.5 },
-            ],
-        };
-        const PRESET_KEYS = Object.keys(PRESETS);
+        // ── Backend ───────────────────────────────────────────────────────
+        // Point this at your FastAPI server. For local dev:
+        //   http://localhost:8000
+        // For Hugging Face Spaces deploy:
+        //   https://<username>-<space-name>.hf.space
+        const API_BASE_URL = "http://localhost:8000";
 
         // ── Softmax computation ───────────────────────────────────────────
         function computeSoftmax(tokens, T) {
+            if (tokens.length === 0) return { exps: [], sumExp: 0, probs: [] };
             const maxLogit = Math.max(...tokens.map(t => t.logit));
             const scaled = tokens.map(t => (t.logit - maxLogit) / T);
             const exps = scaled.map(s => Math.exp(s));
@@ -380,11 +356,39 @@
 
         // ── Main App ─────────────────────────────────────────────────────
         function App() {
-            const [presetKey, setPresetKey] = useState(PRESET_KEYS[0]);
-            const [tokens, setTokens] = useState(PRESETS[PRESET_KEYS[0]].map(t => ({ ...t })));
+            const [tokens, setTokens] = useState([]);
             const [temperature, setTemperature] = useState(1.0);
             const [numSamples, setNumSamples] = useState(1000);
             const [sampleCounts, setSampleCounts] = useState(null);
+
+            // Model-prediction state
+            const [prompt, setPrompt] = useState("The cat sat on the");
+            const [topK, setTopK] = useState(8);
+            const [predictStatus, setPredictStatus] = useState("idle"); // idle | loading | error
+            const [predictError, setPredictError] = useState("");
+            const [modelName, setModelName] = useState("");
+
+            async function fetchPrediction() {
+                setPredictStatus("loading");
+                setPredictError("");
+                try {
+                    const res = await fetch(`${API_BASE_URL}/predict`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ prompt, top_k: topK }),
+                    });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+                    // Backend returns raw logits; map to the {word, logit} shape the UI expects
+                    setTokens(data.predictions.map(p => ({ word: p.token, logit: p.logit })));
+                    setModelName(data.model);
+                    setSampleCounts(null);
+                    setPredictStatus("idle");
+                } catch (err) {
+                    setPredictError(err.message || "Request failed");
+                    setPredictStatus("error");
+                }
+            }
 
             const logitChartRef = useRef(null);
             const probChartRef = useRef(null);
@@ -394,12 +398,8 @@
             const { exps, sumExp, probs } = computeSoftmax(tokens, temperature);
             const words = tokens.map(t => t.word);
 
-            // ── Preset change ──
-            function handlePresetChange(key) {
-                setPresetKey(key);
-                setTokens(PRESETS[key].map(t => ({ ...t })));
-                setSampleCounts(null);
-            }
+            // ── Auto-fetch on mount so the page is populated ──
+            useEffect(() => { fetchPrediction(); }, []);
 
             // ── Token editing ──
             function updateTokenWord(i, word) {
@@ -539,15 +539,61 @@
                     <div className="section">
                         <div className="section-title">
                             <span className="step-num">1</span>
-                            Define Tokens &amp; Logits
+                            Get Next-Token Logits
                         </div>
-                        <div className="controls-row">
-                            <div className="control-group">
-                                <label>Preset Scenario</label>
-                                <select value={presetKey} onChange={e => handlePresetChange(e.target.value)}>
-                                    {PRESET_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
-                                </select>
+
+                        {/* Live model prediction */}
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
+                            <div style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '0.5rem', fontWeight: 500 }}>
+                                Predict from a real LLM — type a prompt; the model returns the top-K logits for the next token.
                             </div>
+                            <div className="controls-row" style={{ marginBottom: '0.5rem' }}>
+                                <div className="control-group" style={{ flex: 1, minWidth: 240 }}>
+                                    <label>Prompt</label>
+                                    <input
+                                        type="text"
+                                        value={prompt}
+                                        onChange={e => setPrompt(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Enter') fetchPrediction(); }}
+                                        style={{ background: '#fff', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: 6, padding: '0.5rem 0.75rem', fontSize: '0.9rem', width: '100%' }}
+                                    />
+                                </div>
+                                <div className="control-group">
+                                    <label>Top-K</label>
+                                    <select value={topK} onChange={e => setTopK(parseInt(e.target.value))}>
+                                        <option value={5}>5</option>
+                                        <option value={8}>8</option>
+                                        <option value={10}>10</option>
+                                        <option value={15}>15</option>
+                                        <option value={20}>20</option>
+                                    </select>
+                                </div>
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={fetchPrediction}
+                                    disabled={predictStatus === "loading" || !prompt.trim()}
+                                >
+                                    {predictStatus === "loading" ? "Predicting…" : "Predict"}
+                                </button>
+                            </div>
+                            {predictStatus === "loading" && (
+                                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                                    Running model… first request after sleep may take 30–60s (cold start).
+                                </div>
+                            )}
+                            {predictStatus === "error" && (
+                                <div style={{ fontSize: '0.85rem', color: '#dc2626' }}>
+                                    Could not reach backend ({predictError}). Make sure the FastAPI server is running at <code>{API_BASE_URL}</code>, or use a preset below.
+                                </div>
+                            )}
+                            {modelName && predictStatus === "idle" && (
+                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                    Showing top-{tokens.length} predictions from <code>{modelName}</code>.
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="controls-row">
                             <button className="btn btn-success" onClick={addToken}>+ Add Token</button>
                         </div>
                         <table className="token-table">
