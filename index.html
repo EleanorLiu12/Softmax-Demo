@@ -435,10 +435,10 @@
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
                     font: { color: '#475569' },
-                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 } },
-                    yaxis: { title: 'Logit Value', gridcolor: '#e2e8f0', zeroline: true, zerolinecolor: '#94a3b8' },
+                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 }, fixedrange: true },
+                    yaxis: { title: 'Logit Value', gridcolor: '#e2e8f0', zeroline: true, zerolinecolor: '#94a3b8', fixedrange: true },
                     margin: { t: 45, b: 50, l: 55, r: 20 },
-                }, { responsive: true, displayModeBar: false });
+                }, { responsive: true, displayModeBar: false, scrollZoom: false, doubleClick: false });
             }, [tokens]);
 
             // ── Plot: probabilities ──
@@ -462,10 +462,10 @@
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
                     font: { color: '#475569' },
-                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 } },
-                    yaxis: { title: 'Probability', gridcolor: '#e2e8f0', range: [0, Math.min(1.05, Math.max(...probs) * 1.3)] },
+                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 }, fixedrange: true },
+                    yaxis: { title: 'Probability', gridcolor: '#e2e8f0', range: [0, Math.min(1.05, Math.max(...probs) * 1.3)], fixedrange: true },
                     margin: { t: 45, b: 50, l: 55, r: 20 },
-                }, { responsive: true, displayModeBar: false });
+                }, { responsive: true, displayModeBar: false, scrollZoom: false, doubleClick: false });
             }, [tokens, temperature]);
 
             // ── Plot: sampling ──
@@ -499,12 +499,12 @@
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
                     font: { color: '#475569' },
-                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 } },
-                    yaxis: { title: 'Relative Frequency / Probability', gridcolor: '#e2e8f0', range: [0, Math.min(1.05, Math.max(...empiricalFreqs, ...probs) * 1.3)] },
+                    xaxis: { title: 'Token', gridcolor: '#e2e8f0', tickfont: { size: 12 }, fixedrange: true },
+                    yaxis: { title: 'Relative Frequency / Probability', gridcolor: '#e2e8f0', range: [0, Math.min(1.05, Math.max(...empiricalFreqs, ...probs) * 1.3)], fixedrange: true },
                     margin: { t: 45, b: 50, l: 55, r: 20 },
                     legend: { x: 0.65, y: 1, bgcolor: 'rgba(255,255,255,0.85)', font: { size: 11 } },
                     barmode: 'group',
-                }, { responsive: true, displayModeBar: false });
+                }, { responsive: true, displayModeBar: false, scrollZoom: false, doubleClick: false });
             }, [sampleCounts, probs]);
 
             // ── Temperature description ──
