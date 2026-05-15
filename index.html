@@ -291,26 +291,17 @@
             font-weight: 600;
         }
 
-        /* Explanation */
-        .explanation {
-            background: #ffffff;
-            border-radius: 12px;
-            padding: 2rem;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            margin-top: 1.5rem;
-        }
-        .explanation h2 {
-            font-size: 1.3rem;
-            color: #1e40af;
+        /* Section intro — short explanatory paragraph above each section's controls */
+        .section-intro {
+            font-size: 0.92rem;
+            color: #475569;
+            line-height: 1.55;
             margin-bottom: 1rem;
+            padding-left: 0.75rem;
+            border-left: 3px solid #c7d2fe;
         }
-        .explanation p {
-            color: #334155;
-            margin-bottom: 1rem;
-            text-align: justify;
-        }
-        .explanation p:last-child { margin-bottom: 0; }
+        .section-intro strong { color: #1e40af; }
+        .section-intro code { background: #f1f5f9; padding: 0 0.25rem; border-radius: 3px; font-size: 0.85em; }
     </style>
 </head>
 <body>
@@ -540,6 +531,9 @@
                             <span className="step-num">1</span>
                             Get Next-Token Logits
                         </div>
+                        <div className="section-intro">
+                            An LLM solves a problem of <strong>conditional probability</strong>: given a sequence of tokens, it computes P(next token | context) over its entire vocabulary. The neural network outputs a raw score — called a <strong>logit</strong> — for every candidate token. Logits can be any real number, positive or negative, and have no probabilistic meaning on their own; they're the input to everything that follows.
+                        </div>
 
                         {/* Live model prediction */}
                         <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
@@ -644,6 +638,9 @@
                             <span className="step-num">2</span>
                             Set Temperature (T)
                         </div>
+                        <div className="section-intro">
+                            <strong>Temperature</strong> controls how "sharp" the distribution will be — without changing what the model has learned. As T → 0, softmax becomes deterministic (the top logit gets nearly all the mass). As T → ∞, the distribution flattens toward uniform, giving low-scoring tokens a real chance. At T = 1, probabilities reflect the relative logit differences directly.
+                        </div>
                         <div className="temp-slider-container">
                             <span style={{ color: '#64748b', fontSize: '0.9rem' }}>0.1</span>
                             <input
@@ -666,6 +663,9 @@
                             <span className="step-num">3</span>
                             Logits vs. Softmax Probabilities
                         </div>
+                        <div className="section-intro">
+                            The <strong>softmax</strong> function, <code>p_i = exp(z_i / T) / Σ exp(z_j / T)</code>, transforms raw logits into a proper discrete probability distribution: every value sits between 0 and 1, and the values sum to exactly 1. This is the mathematical bridge between raw neural-network output and the rules of probability theory. Compare the left chart (raw logits) to the right chart (probabilities after softmax) to see what the transformation does.
+                        </div>
                         <div className="charts-grid">
                             <div ref={logitChartRef} style={{ width: '100%', height: 350 }}></div>
                             <div ref={probChartRef} style={{ width: '100%', height: 350 }}></div>
@@ -677,6 +677,9 @@
                         <div className="section-title">
                             <span className="step-num">4</span>
                             Step-by-Step Computation
+                        </div>
+                        <div className="section-intro">
+                            Here is the softmax formula applied row by row to your current logits and temperature. Read left to right: divide the logit by T, exponentiate, then normalize by the sum across all tokens. The final column is the probability the model assigns to each candidate.
                         </div>
                         <div className="formula-display">
                             p<sub>i</sub> = exp(z<sub>i</sub> / T) / &Sigma; exp(z<sub>j</sub> / T)
@@ -727,6 +730,9 @@
                             <span className="step-num">5</span>
                             Sampling Simulation
                         </div>
+                        <div className="section-intro">
+                            Once we have a probability distribution, the model <strong>samples</strong> from it — essentially rolling a weighted die. This is why asking an LLM the same question twice can produce different answers: each response is a fresh random draw. As you increase N, the <strong>Law of Large Numbers</strong> takes over — the empirical frequencies (bars) converge toward the theoretical softmax probabilities (red diamonds). At N = 100 you'll see noticeable jitter; by N = 50,000 they're nearly indistinguishable.
+                        </div>
                         <div className="sampling-controls">
                             <div className="control-group">
                                 <label>Number of Samples (N)</label>
@@ -761,43 +767,6 @@
                         )}
                     </div>
 
-                    {/* Explanation */}
-                    <div className="explanation">
-                        <h2>How Does a Large Language Model Predict the Next Word?</h2>
-                        <p>
-                            A Large Language Model (LLM) like ChatGPT or Claude does not "understand" language the way humans do.
-                            Instead, it solves a problem of <strong>conditional probability</strong>: given a sequence of words
-                            (w<sub>1</sub>, w<sub>2</sub>, ..., w<sub>t</sub>), it computes a probability distribution
-                            P(W<sub>t+1</sub> = x | w<sub>1</sub>, ..., w<sub>t</sub>) over every possible next word x in its vocabulary.
-                            The neural network produces raw scores called <strong>logits</strong> for each candidate word. These scores
-                            can be any real number &mdash; positive, negative, or zero &mdash; and do not form a valid probability distribution.
-                            The <strong>Softmax function</strong>, p<sub>i</sub> = exp(z<sub>i</sub>/T) / &Sigma; exp(z<sub>j</sub>/T),
-                            transforms these raw scores into a proper discrete probability distribution where every value is
-                            between 0 and 1 and all values sum to exactly 1. This is the mathematical bridge between raw neural
-                            network output and the rules of probability theory.
-                        </p>
-                        <p>
-                            The <strong>Temperature</strong> parameter (T) controls the "sharpness" of this distribution without
-                            changing what the model has learned. When T is very low (approaching 0), the Softmax output becomes
-                            extremely concentrated &mdash; the highest-logit token receives nearly all the probability mass, making
-                            the model deterministic and repetitive. When T is high (much greater than 1), the distribution flattens
-                            toward uniform, giving low-scoring tokens a meaningful chance of being selected. This makes the model
-                            appear more "creative" but also more prone to hallucinations. At T = 1, the probabilities directly
-                            reflect the relative differences in logit scores. Try dragging the temperature slider above to see how
-                            the same set of logits produces dramatically different probability distributions.
-                        </p>
-                        <p>
-                            Once the probability distribution is computed, the model <strong>samples</strong> from it &mdash;
-                            essentially rolling a weighted die. This is why you can ask an LLM the same question twice and receive
-                            different answers: each response is a fresh random sample. The sampling simulation in Section 5
-                            demonstrates the <strong>Law of Large Numbers</strong>: as you increase the number of samples, the
-                            empirical frequencies (bars) converge toward the theoretical Softmax probabilities (red diamonds).
-                            With N = 100 samples you may see noticeable deviation, but by N = 50,000 the empirical and theoretical
-                            values are nearly indistinguishable. This convergence is a fundamental result in probability theory and
-                            is exactly the mechanism that makes LLM behavior statistically predictable in aggregate, even though
-                            individual outputs are random.
-                        </p>
-                    </div>
                 </div>
             );
         }
